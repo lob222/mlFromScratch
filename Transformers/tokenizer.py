@@ -1,70 +1,88 @@
 # My implementation of BPE (Byte-Pair Encoding) as detailed in original Paper
 # Resource used to learn about BPE: https://www.youtube.com/watch?v=tOMjTCO0htA
-import heapq
+
+class Node: 
+    def __init__(self, data):
+        self.data = data
+        self.next = None
+        self.prev = None
+
+
 
 class BPEtokenizer:
     def __init__(self, max_tokens = 37000):
         self.max_tokens = max_tokens
 
-    def encode(self, corpus):
-        token_list = list("".join(corpus))
-        vocab = list(set(token_list))
+    def create_llist(self, sentence):
 
-        pq = []
+        nodes = []
+        for tk in sentence:
+            nodes.append(Node(data = tk))
+
+        for i in range(len(nodes)):
+            node_curr = nodes[i]
+            if i > 0 :
+                node_curr.prev = nodes[i - 1]
+            if i < len(nodes) - 1:
+                node_curr.next = nodes[i + 1]
+
+        return nodes[0]
+
+
+    def encode(self, corpus):
+        vocab = list(set(''.join(corpus)))
+
+        llist_corpus = [self.create_llist(s) for s in corpus]
 
         pair_count = dict()
 
-        # 1. Intial pairs count
-        for i in range(len(token_list) - 1):
-            tk_l = token_list[i]
-            tk_r = token_list[i + 1]
+        for ll_sentence in llist_corpus:
+            curr_node = ll_sentence
+            while curr_node is not None and curr_node.next is not None:
 
-            pair = tuple([tk_l, tk_r])
-            if pair in pair_count:
-                pair_count[pair] = pair_count[pair] - 1
-            else:
-                pair_count[pair] = -1
-        
-        for p in pair_count:
-            heapq.heappush(pq, (-pair_count[p], p)) # (-ve count, pair_tuple)
+                next_node = curr_node.next
 
+                tk_l = curr_node.data
+                tk_r = next_node.data
 
-        
-        while len(vocab) < 3.7e4:
-            
-            neg_count, most_pair = heapq.heappop(pq) # takes most negative element ("lowest prioirty" & highest pair count)
-            most_l, most_r = most_pair
-            vocab.append("".join(most_pair))
-
-            new_pair_idxs = []
-
-            j = 0
-            while j < len(token_list) - 1:
-                tk_l = token_list[j]
-                tk_r = token_list[j + 1]
-                if tk_l == most_l and tk_r == most_r:
-                    # replace all instances of tk_l and tk_r by concat(tk_l, tk_r), ie. concatenate and remove
-                    token_list[j] = token_list[j] + token_list[j + 1]
-                    token_list.pop(j+1)
-                    new_pair_idxs.append(j)
-                j += 1
-                
-            new_pair_count = dict()
-
-            # Add the new pairs to the pair list
-            for idx in new_pair_idxs:
-                if idx == 0:
-                    pairs = [tuple([token_list[idx], token_list[idx + 1]])]
-                elif idx == len(token_list) - 1:
-                    pairs = [tuple([token_list[idx - 1], token_list[idx]])]
+                tk_pair = tuple([tk_l, tk_r])
+                if tk_pair in pair_count:
+                    pair_count[tk_pair] = pair_count[tk_pair] + 1
                 else:
-                    pairs = [tuple([token_list[idx - 1], token_list[idx]]), tuple([token_list[idx], token_list[idx + 1]])]
+                    pair_count[tk_pair] = 1
+                curr_node = curr_node.next
 
-                for pair in pairs:
-                    if pair in new_pair_count:
-                        new_pair_count[pair] = new_pair_count[pair] - 1
+
+        while len(vocab) < 3.7e4:
+            max_tk_l, max_tk_r = max(pair_count.items(), key=lambda item: item[1])[0]
+            tk_new = max_tk_l + max_tk_r
+            vocab.append(tk_new)
+            del pair_count[(max_tk_l, max_tk_r)]
+
+            for ll_sentence in llist_corpus:
+                curr_node = ll_sentence
+                while curr_node is not None and curr_node.next is not None:
+                    left_node = curr_node
+                    right_node = curr_node.next
+
+                    tk_l = left_node.data
+                    tk_r = right_node.data
+
+                    if tk_l == max_tk_l and tk_r == max_tk_r:
+                        new_node = Node(tk_l + tk_r)
+                        new_node.prev = left_node.prev
+                        new_node.next = right_node.next
+
+                        left_node.prev.next = new_node
+                        right_node.next.prev = new_node
+
+                    # TODO: finish implementation
+
+
+                    tk_pair = tuple([tk_l, tk_r])
+                    if tk_pair in pair_count:
+                        pair_count[tk_pair] = pair_count[tk_pair] + 1
                     else:
-                        new_pair_count[pair] = -1
+                        pair_count[tk_pair] = 1
+                    curr_node = curr_node.next
 
-            for p in new_pair_count:
-                heapq.heappush(pq, (-new_pair_count[p], p)) # (-ve count, pair_tuple)

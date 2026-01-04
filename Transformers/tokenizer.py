@@ -59,8 +59,12 @@ class BPEtokenizer:
             vocab.append(tk_new)
             del pair_count[(max_tk_l, max_tk_r)]
 
-            for ll_sentence in llist_corpus:
+            for i in range(len(llist_corpus)):
+                ll_sentence = llist_corpus[i]
                 curr_node = ll_sentence
+
+                head_node = True
+
                 while curr_node is not None and curr_node.next is not None:
                     left_node = curr_node
                     right_node = curr_node.next
@@ -73,16 +77,36 @@ class BPEtokenizer:
                         new_node.prev = left_node.prev
                         new_node.next = right_node.next
 
-                        left_node.prev.next = new_node
-                        right_node.next.prev = new_node
+                        if left_node.prev: left_node.prev.next = new_node
+                        if right_node.next: right_node.next.prev = new_node
 
-                    # TODO: finish implementation
+                        if head_node:
+                            llist_corpus[i] = new_node
 
+                        # Update the counts 
+                        if new_node.prev:
+                            # New Pair with prev, +1 count
+                            if (new_node.prev.data, new_node.data) in pair_count: 
+                                pair_count[(new_node.prev.data, new_node.data)] = pair_count[(new_node.prev.data, new_node.data)] + 1
+                            else:
+                                pair_count[(new_node.prev.data, new_node.data)] = 1
+                            # Remove 1 count from pair originally paired with LEFT
+                            pair_count[(new_node.prev.data, tk_l)] = pair_count[(new_node.prev.data, tk_l)] - 1
+                       
+                        if new_node.next:
+                            # New Pair with next, +1 count
+                            if (new_node.data, new_node.next.data) in pair_count: 
+                                pair_count[(new_node.data, new_node.next.data)] = pair_count[(new_node.data, new_node.next.data)] + 1
+                            else:
+                                pair_count[(new_node.data, new_node.next.data)] = 1
+                            # Remove 1 count from pair originally paired with RIGHT
+                            pair_count[(tk_r, new_node.next.data)] = pair_count[(tk_r, new_node.next.data)] - 1
 
-                    tk_pair = tuple([tk_l, tk_r])
-                    if tk_pair in pair_count:
-                        pair_count[tk_pair] = pair_count[tk_pair] + 1
+                        curr_node = new_node   
                     else:
-                        pair_count[tk_pair] = 1
+                        head_node = False
+                    
                     curr_node = curr_node.next
+
+
 

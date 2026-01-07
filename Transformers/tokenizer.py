@@ -16,7 +16,7 @@ class Node:
         while curr_node is not None:
             output_str += curr_node.data
             if curr_node.next is not None:
-                output_str += ", "
+                output_str += "->"
             curr_node = curr_node.next
         
         output_str += ']'
@@ -46,10 +46,24 @@ class BPEtokenizer:
                 node_curr.next = nodes[i + 1]
 
         return nodes[0]
+    
+    def calc_unigram_freq(self, vocab, corpus):
 
+        unigram_freq = dict.fromkeys(vocab, 0)
+
+        for s in corpus:
+            for c in s:
+                unigram_freq[c] = unigram_freq[c] + 1
+        # Make it so that spaces are least prioritized in break conditions
+        unigram_freq[' '] = 0
+        unigram_freq[','] = -1
+        unigram_freq['.'] = -1
+        return unigram_freq
 
     def encode(self, corpus):
         vocab = list(set(''.join(corpus)))
+
+        unigram_freq = self.calc_unigram_freq(vocab, corpus)
 
         llist_corpus = [self.create_llist(s) for s in corpus]
 
@@ -65,21 +79,32 @@ class BPEtokenizer:
                 tk_r = next_node.data
 
                 tk_pair = tuple([tk_l, tk_r])
+
+                
                 if tk_pair in pair_count:
                     pair_count[tk_pair] = pair_count[tk_pair] + 1
                 else:
                     pair_count[tk_pair] = 1
                 curr_node = curr_node.next
 
+        
 
         while len(vocab) < self.max_tokens:
             
             if self.debug: 
-                print("vocab: ", vocab)
+                # print("vocab: ", vocab)
                 for s in llist_corpus:
                     print(s)
 
-            max_tk_l, max_tk_r = max(pair_count.items(), key=lambda item: item[1])[0]
+            max_freq = max(pair_count.values())
+            candidates = [pair for pair, freq in pair_count.items() if freq == max_freq]
+
+            # From candidates, pick the pair with the highest sum of original unigram token frequencies
+            max_tk_l, max_tk_r = max(candidates,
+                            key=lambda pair: sum(unigram_freq[c] for c in pair[0]) + sum(unigram_freq[c] for c in pair[1]))
+
+            # old naive version: max_tk_l, max_tk_r = max(candidates, key=lambda item: item[1])[0]
+
             tk_new = max_tk_l + max_tk_r
             vocab.append(tk_new)
             if self.debug:
@@ -87,7 +112,7 @@ class BPEtokenizer:
                 print((max_tk_l, max_tk_r))
                 print(sorted(pair_count.items(), key=lambda item: item[1], reverse=True))
                 print("\n")
-            del pair_count[(max_tk_l, max_tk_r)]
+            
             for i in range(len(llist_corpus)):
                 ll_sentence = llist_corpus[i]
                 curr_node = ll_sentence
@@ -101,6 +126,10 @@ class BPEtokenizer:
                     tk_l = left_node.data
                     tk_r = right_node.data
 
+                    
+                    # Pair found
+                    # Caveats: what if we have to pairs that overlap? ie. a,a,a and the pair is aa?
+                    # We will choose to merge the first one found
                     if tk_l == max_tk_l and tk_r == max_tk_r:
                         new_node = Node(tk_l + tk_r)
                         new_node.prev = left_node.prev
@@ -129,13 +158,15 @@ class BPEtokenizer:
                             else:
                                 pair_count[(new_node.data, new_node.next.data)] = 1
                             # Remove 1 count from pair originally paired with RIGHT
-                            pair_count[(tk_r, new_node.next.data)] = pair_count[(tk_r, new_node.next.data)] - 1
+                            if new_node.next:
+                                pair_count[(tk_r, new_node.next.data)] = pair_count[(tk_r, new_node.next.data)] - 1
 
                         curr_node = new_node   
                     else:
                         head_node = False
                     
                     curr_node = curr_node.next
+            del pair_count[(max_tk_l, max_tk_r)]
 
         return vocab
 

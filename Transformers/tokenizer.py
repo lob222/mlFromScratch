@@ -7,11 +7,30 @@ class Node:
         self.next = None
         self.prev = None
 
+    def __str__(self) -> str:
+
+        output_str = '['
+
+        curr_node = self
+
+        while curr_node is not None:
+            output_str += curr_node.data
+            if curr_node.next is not None:
+                output_str += ", "
+            curr_node = curr_node.next
+        
+        output_str += ']'
+        return output_str
+
 
 
 class BPEtokenizer:
     def __init__(self, max_tokens = 37000):
         self.max_tokens = max_tokens
+        self.debug = False
+
+    def set_debug(self, bool):
+        self.debug = bool
 
     def create_llist(self, sentence):
 
@@ -53,12 +72,22 @@ class BPEtokenizer:
                 curr_node = curr_node.next
 
 
-        while len(vocab) < 3.7e4:
+        while len(vocab) < self.max_tokens:
+            
+            if self.debug: 
+                print("vocab: ", vocab)
+                for s in llist_corpus:
+                    print(s)
+
             max_tk_l, max_tk_r = max(pair_count.items(), key=lambda item: item[1])[0]
             tk_new = max_tk_l + max_tk_r
             vocab.append(tk_new)
+            if self.debug:
+                print("\n")
+                print((max_tk_l, max_tk_r))
+                print(sorted(pair_count.items(), key=lambda item: item[1], reverse=True))
+                print("\n")
             del pair_count[(max_tk_l, max_tk_r)]
-
             for i in range(len(llist_corpus)):
                 ll_sentence = llist_corpus[i]
                 curr_node = ll_sentence
@@ -108,5 +137,5 @@ class BPEtokenizer:
                     
                     curr_node = curr_node.next
 
-
+        return vocab
 
